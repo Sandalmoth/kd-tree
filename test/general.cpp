@@ -16,4 +16,6 @@ int main() {
   v.push_back(make_pair(decltype(kdt)::position_type{0.1, 89.0}, 'c'));
   kdt = KDTree<double, 2, char>(v.begin(), v.end());
   cout << kdt << endl;
+  cout << kdt.nearest_neighbour(decltype(kdt)::position_type{0.0, 0.0}) << endl;
+  cout << "PROGRAM END" << endl;
 }
