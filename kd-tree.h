@@ -65,6 +65,12 @@ private:
     return dsq;
   }
 
+  void visitreset() {
+    for (auto &n: nodes) {
+      n.visited = false;
+    }
+  }
+
   // Recursive printing of tree. Cool eh?
   friend std::ostream& operator<<(std::ostream &out, const Node &node) {
     if (!node.noless)
@@ -107,6 +113,7 @@ public:
     while (true) {
       size_t dim = depth % N;
       if (current_node->leaf) {
+        current_node->visited = true;
         best = current_node->e;
         break;
       }
@@ -127,7 +134,91 @@ public:
     }
     // now traverse upwards to make sure there is no better point
     double dsq = squared_distance(best->first, pos);
+    while (true) {
+      std::cout << '\n' << *current_node << std::endl;
+      // are we at a better node?
+      double ndsq = squared_distance(current_node->e->first, pos);
+      // std::cout << dsq << std::endl;
+      if (ndsq < dsq) {
+        best = current_node->e;
+        dsq = ndsq;
+      }
+      // move up tree
+      if (current_node->root)
+        break;
+      std::cout << *current_node << "  --  " << *(current_node->nparent) << std::endl;
+      current_node = current_node->nparent;
+      --depth;
+      std::cout << *current_node << std::endl;
+      size_t dim = depth % N;
+      // could there be a better node in the other branch?
+      double planediff = pos[dim] - current_node->e->first[dim];
+      double planedist = planediff * planediff;
+      std::cout << pos[dim] << ' ' << current_node->e->first[dim] << std::endl;
+      std::cout << planedist << ' ' << dsq << std::endl;
+      if (planedist < dsq) {
+        // std::cout << planedist << std::endl;
+        while (true) {
+          std::cout << "we're goin' down!" << std::endl;
+          if (current_node->leaf) {
+            current_node->visited = true;
+            std::cout << "at leaf" << std::endl;
+            break;
+          }
+          if (pos[dim] < current_node->e->first[dim]) {
+            if (current_node->noless) {
+              if (current_node->nmore->visited) {
+                break;
+              }
+              current_node = current_node->nmore;
+            } else {
+              if (current_node->nless->visited) {
+                if (current_node->nomore) {
+                  break;
+                } else {
+                  if (current_node->nmore->visited) {
+                    break;
+                  } else {
+                    current_node = current_node->nmore;
+                  }
+                }
+                if (current_node->nmore->visited) {
+                  break;
+                } else {
+                  current_node = current_node->nmore;
+                }
+              }
+              current_node = current_node->nless;
+            }
+          } else {
+            if (current_node->nomore) {
+              if (current_node->nless->visited) {
+                break;
+              }
+              current_node = current_node->nless;
+            } else {
+              if (current_node->nmore->visited) {
+                if (current_node->noless) {
+                  break;
+                } else {
+                  if (current_node->nless->visited) {
+                    break;
+                  } else {
+                    current_node = current_node->nless;
+                  }
+                }
+              }
+              current_node = current_node->nmore;
+            }
+          }
+          ++depth;
+        }
+      } else {
+        current_node->visited = true;
+      }
+    }
     std::cout << dsq << std::endl;
+    visitreset();
     return best->second;
   }
 
@@ -151,6 +242,7 @@ private:
     bool leaf;
     bool noless;
     bool nomore;
+    bool visited = false;
     typename decltype(elements)::iterator e;
     typename decltype(nodes)::iterator nless;
     typename decltype(nodes)::iterator nmore;
