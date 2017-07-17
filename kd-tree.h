@@ -6,57 +6,64 @@
 #include <array>
 #include <functional>
 #include <iostream>
+#include <list>
 #include <vector>
+#include <cmath>
 
 
-template <typename T, size_t N, typename E>
+
+
+template <typename T, size_t N>
 class KDTree {
 public:
-  typedef std::array<T, N> position_type;
-  typedef E value_type;
-  typedef std::pair<position_type, value_type> element_type;
-  typedef std::pair<position_type, typename std::vector<element_type>::iterator> element_ptr_type;
+  typedef std::array<T, N> value_type;
 
 
 private:
-  struct Node;
+  struct Node {
+    value_type p;
+    Node *less, *more;
+  };
 
-  typename std::vector<Node>::iterator build(std::vector<element_ptr_type> elem, size_t depth=0) {
-    size_t axis = depth % N;
-    ++depth;
-    std::sort(elem.begin(), elem.end()
-              , [&](const element_ptr_type &a, const element_ptr_type &b) {
-                return a.first[axis] < b.first[axis];
+  template <typename Titer>
+  Titer median_dim_k(Titer first, Titer last, size_t k) {
+    // bad algorithm probably
+    // but implementing quickselect is annoying
+    std::vector<std::pair<T, Titer>> v;
+    for (auto it = first; it != last; ++it) {
+      v.push_back(std::make_pair(it->p[k], it));
+    }
+    std::sort(v.begin(), v.end()
+              , [](auto a, auto b) {
+                return a.first < b.first;
               });
-    auto median = elem.begin() + (elem.end() - elem.begin()) / 2;
-    std::vector<element_ptr_type> lesser {elem.begin(), median};
-    std::vector<element_ptr_type> greater {median + 1, elem.end()};
-    std::cout << lesser.size() << ' ' << greater.size() << std::endl;
-    nodes.push_back(Node());
-    auto node = nodes.end();
-    --node;
-    node->e = median->second;
-    if (lesser.size() > 0) {
-      node->nless = build(lesser, depth);
-      node->nless->nparent = node;
-      node->noless = false;
-    } else {
-      node->nless = nodes.end();
-      node->noless = true;
-    }
-    if (greater.size() > 0) {
-      node->nmore = build(greater, depth);
-      node->nmore->nparent = node;
-      node->nomore = false;
-    } else {
-      node->nmore = nodes.end();
-      node->nomore = true;
-    }
-    node->leaf = node->noless && node->nomore;
-    return node;
+    return v[v.size()/2].second;
   }
 
-  double squared_distance(position_type a, position_type b) {
+  template <typename Titer>
+  Node *build(Titer first, Titer last, size_t depth) {
+
+    if (first == last)
+      return nullptr;
+    // possibly include second base case for first++ == last
+
+    size_t k = depth % N;
+    auto median = median_dim_k(first, last, k);
+    Node *n = &(*median);
+    n->less = 
+    return n;
+  }
+
+  double dist(value_type a, value_type b) {
+    double dsq = 0.0;
+    for (size_t i = 0; i < N; ++i) {
+      double diff = a[i] - b[i];
+      dsq += diff*diff;
+    }
+    return sqrt(dsq);
+  }
+
+  double dist2(value_type a, value_type b) {
     double dsq = 0.0;
     for (size_t i = 0; i < N; ++i) {
       double diff = a[i] - b[i];
@@ -65,157 +72,34 @@ private:
     return dsq;
   }
 
-  void visitreset() {
-    for (auto &n: nodes) {
-      n.visited = false;
-    }
-  }
-
-  // Recursive printing of tree. Cool eh?
-  friend std::ostream& operator<<(std::ostream &out, const Node &node) {
-    if (!node.noless)
-      out << '(' << *(node.nless) << ") ";
-    for (auto &x: node.e->first) {
+  friend std::ostream& operator<<(std::ostream &out, const Node &n) {
+    if (n.less != nullptr)
+      out << '(' << *(n.less) << ") ";
+    for (auto &x: n.p) {
       out << x << ' ';
     }
     out << '\b';
-    if (!node.nomore)
-      out << " (" << *(node.nmore) << ')';
+    if (n.more != nullptr)
+      out << " (" << *(n.more) << ')';
     return out;
   }
+
 
 public:
   KDTree() { }
 
   template <typename Titer>
   KDTree(Titer first, Titer last) {
-    elements = {first, last};
-    nodes.reserve(elements.size());
-    for (auto x: elements) {
-      for (auto y: x.first) std::cout << y << ' ';
-      std::cout << x.second << std::endl;
+    // Include a compile time check that this container contains value_type objects
+    for (auto it = first; it != last; ++it) {
+      nodes.emplace_back(Node{*it, nullptr, nullptr});
     }
-    std::vector<element_ptr_type> eptrs;
-    for (auto it = elements.begin(); it < elements.end(); ++it) {
-      eptrs.push_back(make_pair(it->first, it));
+
+    for (auto &n: nodes) {
+      std::cout << n << std::endl;
     }
-    root = build(eptrs);
-    root->root = true;
-    std::cout << elements.size() << std::endl;
-    std::cout << nodes.size() << std::endl;
-  }
 
-  value_type &nearest_neighbour(position_type pos) {
-    // first, traverse to a leaf
-    size_t depth = 0;
-    typename std::vector<Node>::iterator current_node = root;
-    typename std::vector<element_type>::iterator best;
-    while (true) {
-      size_t dim = depth % N;
-      if (current_node->leaf) {
-        current_node->visited = true;
-        best = current_node->e;
-        break;
-      }
-      if (pos[dim] < current_node->e->first[dim]) {
-        if (current_node->noless) {
-          current_node = current_node->nmore;
-        } else {
-          current_node = current_node->nless;
-        }
-      } else {
-        if (current_node->nomore) {
-          current_node = current_node->nless;
-        } else {
-          current_node = current_node->nmore;
-        }
-      }
-      ++depth;
-    }
-    // now traverse upwards to make sure there is no better point
-    double dsq = squared_distance(best->first, pos);
-    while (true) {
-      // are we at a better node?
-      double ndsq = squared_distance(current_node->e->first, pos);
-      // std::cout << dsq << std::endl;
-      if (ndsq < dsq) {
-        best = current_node->e;
-        dsq = ndsq;
-      }
-      // move up tree
-      if (current_node->root)
-        break;
-      current_node = current_node->nparent;
-      --depth;
-      size_t dim = depth % N;
-      // could there be a better node in the other branch?
-      double planediff = pos[dim] - current_node->e->first[dim];
-      double planedist = planediff * planediff;
-      if (planedist < dsq) {
-        // std::cout << planedist << std::endl;
-        while (true) {
-          if (current_node->leaf) {
-            current_node->visited = true;
-            break;
-          }
-
-          if (pos[dim] < current_node->e->first[dim]) {
-
-            if (current_node->noless) {
-              if (current_node->nmore->visited) {
-                break;
-              } else {
-                current_node = current_node->nmore;
-              }
-            } else {
-              if (current_node->nless->visited) {
-                if (current_node->nomore) {
-                  break;
-                } else if (current_node->nmore->visited) {
-                  break;
-                } else {
-                  current_node = current_node->nmore;
-                }
-              } else {
-                current_node = current_node->nless;
-              }
-            }
-
-          } else {
-
-            if (current_node->nomore) {
-              if (current_node->nless->visited) {
-                break;
-              } else {
-                current_node = current_node->nless;
-              }
-            } else {
-              if (current_node->nmore->visited) {
-                if (current_node->noless) {
-                  break;
-                } else if (current_node->nless->visited) {
-                  break;
-                } else {
-                  current_node = current_node->nless;
-                }
-              } else {
-                current_node = current_node->nmore;
-              }
-            }
-
-          }
-          ++depth;
-        }
-      }
-      current_node->visited = true;
-    }
-    visitreset();
-    return best->second;
-  }
-
-  size_t size() const {
-    std::cout << elements.size() << ' ' << nodes.size() << std::endl;
-    return elements.size();
+    root = build(nodes.begin(), nodes.end(), 0);
   }
 
   friend std::ostream& operator<<(std::ostream& out, const KDTree &kdt) {
@@ -223,23 +107,11 @@ public:
     return out;
   }
 
+
 private:
-  std::vector<element_type> elements;
-  std::vector<Node> nodes;
-  typename std::vector<Node>::iterator root;
+  Node *root;
 
-  struct Node {
-    bool root = false;
-    bool leaf;
-    bool noless;
-    bool nomore;
-    bool visited = false;
-    typename decltype(elements)::iterator e;
-    typename decltype(nodes)::iterator nless;
-    typename decltype(nodes)::iterator nmore;
-    typename decltype(nodes)::iterator nparent;
-  };
-
+  std::list<Node> nodes;
 };
 
 
