@@ -25,19 +25,29 @@ private:
     Node *less, *more;
   };
 
+  // template <typename Titer>
+  // Titer median_dim_k(Titer first, Titer last, size_t k) {
+  //   // bad algorithm probably
+  //   // but implementing quickselect is annoying
+  //   std::vector<std::pair<T, Titer>> v;
+  //   for (auto it = first; it != last; ++it) {
+  //     v.push_back(std::make_pair(it->p[k], it));
+  //   }
+  //   std::sort(v.begin(), v.end()
+  //             , [](auto a, auto b) {
+  //               return a.first < b.first;
+  //             });
+  //   return v[v.size()/2].second;
+  // }
+
   template <typename Titer>
-  Titer median_dim_k(Titer first, Titer last, size_t k) {
-    // bad algorithm probably
-    // but implementing quickselect is annoying
-    std::vector<std::pair<T, Titer>> v;
-    for (auto it = first; it != last; ++it) {
-      v.push_back(std::make_pair(it->p[k], it));
-    }
-    std::sort(v.begin(), v.end()
-              , [](auto a, auto b) {
-                return a.first < b.first;
-              });
-    return v[v.size()/2].second;
+  Titer sort_dim_k(Titer first, Titer last, size_t k) {
+    std::list<Node> partial;
+    partial.splice(partial.begin(), nodes, first, last);
+    partial.sort([&](auto a, auto b) {
+        return a->p[k] < b->p[k];
+      });
+    nodes.splice(first, partial, partial.begin(), partial.end());
   }
 
   template <typename Titer>
@@ -48,8 +58,20 @@ private:
     // possibly include second base case for first++ == last
 
     size_t k = depth % N;
-    auto median = median_dim_k(first, last, k);
+    // TODO make better median finding algorithm?
+    sort_dim_k(first, last, k);
+    auto median = first;
+    bool tff = false;
+    for (auto it = last; median != it;) {
+      if (tff) ++median;
+      else --it;
+      tff = !tff;
+    }
     Node *n = &(*median);
+    auto lessend = median;
+    --lessend;
+    auto morebegin = median;
+    -- morebegin;
     n->less = 
     return n;
   }
