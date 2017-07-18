@@ -9,8 +9,11 @@
 #include <list>
 #include <vector>
 #include <cmath>
+#include <tuple>
 
 
+// k-d tree with scapegoat rebalancing
+// typename T needs to have operator<
 
 
 template <typename T, size_t N>
@@ -22,58 +25,84 @@ public:
 private:
   struct Node {
     value_type p;
-    Node *less, *more;
+    Node *less = nullptr;
+    Node *more = nullptr;
   };
 
-  // template <typename Titer>
-  // Titer median_dim_k(Titer first, Titer last, size_t k) {
-  //   // bad algorithm probably
-  //   // but implementing quickselect is annoying
-  //   std::vector<std::pair<T, Titer>> v;
-  //   for (auto it = first; it != last; ++it) {
-  //     v.push_back(std::make_pair(it->p[k], it));
-  //   }
-  //   std::sort(v.begin(), v.end()
-  //             , [](auto a, auto b) {
-  //               return a.first < b.first;
-  //             });
-  //   return v[v.size()/2].second;
-  // }
-
-  template <typename Titer>
-  Titer sort_dim_k(Titer first, Titer last, size_t k) {
-    std::list<Node> partial;
-    partial.splice(partial.begin(), nodes, first, last);
-    partial.sort([&](auto a, auto b) {
-        return a->p[k] < b->p[k];
-      });
-    nodes.splice(first, partial, partial.begin(), partial.end());
+  size_t node_size(Node *n) {
+    if (n == nullptr)
+      return 0;
+    else
+      return node_size(n->less) + node_size(n->less) + 1;
   }
 
-  template <typename Titer>
-  Node *build(Titer first, Titer last, size_t depth) {
+  std::vector<Node *> get_subtree(Node *src) {
+    
+  }
 
-    if (first == last)
+  // TODO memory usage of this function is a little bad, with the node *list copying
+  // still, pointers are fairly small, so unless the tree is massive, this solution should be fine.
+  Node *build(std::vector<Node *> np, size_t depth = 0) {
+    // no more nodes base case
+    if (np.size() == 0)
       return nullptr;
-    // possibly include second base case for first++ == last
+
+    if (depth > max_depth)
+      max_depth = depth;
+
+    // trivial base case, median in vector of size 1 can be only one element
+    if (np.size() == 1)
+      return np.front();
 
     size_t k = depth % N;
-    // TODO make better median finding algorithm?
-    sort_dim_k(first, last, k);
-    auto median = first;
-    bool tff = false;
-    for (auto it = last; median != it;) {
-      if (tff) ++median;
-      else --it;
-      tff = !tff;
+    // TODO implement better median finding algorithm?
+    std::sort(np.begin(), np.end()
+              , [&](Node *a, Node *b) {
+                return a->p[k] < b->p[k];
+              });
+    auto median = np.begin() + np.size()/2;
+    (*median)->less = build(std::vector<Node *>{np.begin(), median}, depth + 1);
+    (*median)->more = build(std::vector<Node *>{median + 1, np.end()}, depth + 1);
+    return *median;
+  }
+
+  std::pair<bool, size_t> insert_node(Node *&src, Node *n, size_t depth = 0) {
+    if (src == nullptr) {
+      src = n;
+      return std::make_pair(false, 0);
     }
-    Node *n = &(*median);
-    auto lessend = median;
-    --lessend;
-    auto morebegin = median;
-    -- morebegin;
-    n->less = 
-    return n;
+
+    size_t k = depth % N;
+    Node *&next = (n->p[k] < src->p[k]) ? src->less : src->more;
+    Node *&other = (n->p[k] < src->p[k]) ? src->more : src->less;
+    if (next == nullptr) {
+      // We hit a leaf, insert node.
+      if (depth > max_depth)
+        max_depth = depth;
+      next = n;
+      // first argument: did we unbalance the tree beyond the limit?
+      // second argument: we know that this node is one node, and that we just added one node.
+      // So we need to find the size of the other child subtree
+      return std::make_pair(depth > log(nodes.size()) / log(balancing_limit), 2 + node_size(other));
+    } else {
+      // Recursively insert node in a subtree
+      auto rebuild_info = insert_node(next, n, depth+1);
+      // Do we need to rebuild?
+      if (rebuild_info->first) {
+        // Is this the scapegoat node?
+        size_t this_size = rebuild_info.second + 1 + node_size(other);
+        if (rebuild_info.second > balancing_limit * this_size) {
+          // Child of this node is the scapegoat, rebuild;
+        } else {
+          // keep moving up the tree looking for scapegoats
+          rebuild_info.second = this_size;
+          return rebuild_info;
+        }
+      } else {
+        // we don't care about the subtree size if there is no need to rebuild
+        return std::make_pair(false, 0);
+      }
+    }
   }
 
   double dist(value_type a, value_type b) {
@@ -113,15 +142,24 @@ public:
   template <typename Titer>
   KDTree(Titer first, Titer last) {
     // Include a compile time check that this container contains value_type objects
+    // Although, i guess it wont compile anyway if it doesn't?
     for (auto it = first; it != last; ++it) {
       nodes.emplace_back(Node{*it, nullptr, nullptr});
     }
 
-    for (auto &n: nodes) {
-      std::cout << n << std::endl;
-    }
+    std::vector<Node *> np;
+    np.reserve(nodes.size());
+    for (auto &n: nodes) np.push_back(&n);
+    root = build(std::move(np));
+  }
 
-    root = build(nodes.begin(), nodes.end(), 0);
+  void insert(value_type p) {
+    nodes.emplace_back(Node{p, nullptr, nullptr});
+    if (root == nullptr) {
+      root = &nodes.back();
+    } else {
+      insert_node(root, &nodes.back());
+    }
   }
 
   friend std::ostream& operator<<(std::ostream& out, const KDTree &kdt) {
@@ -131,9 +169,14 @@ public:
 
 
 private:
-  Node *root;
-
+  Node *root = nullptr;
+  size_t max_depth = 0;
   std::list<Node> nodes;
+
+  // Balancing limits sets a cap on how unbalance the tree can become during insertion/deletion
+  // lower -> faster indel, slower lookup
+  // higher -> faster lookup, slower indel
+  double balancing_limit = 0.66;
 };
 
 
