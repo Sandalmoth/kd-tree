@@ -16,6 +16,14 @@
 // typename T needs to have operator<
 
 
+// Balancing limits sets a cap on how unbalance the tree can become during insertion/deletion
+// lower -> faster indel, slower lookup
+// higher -> faster lookup, slower indel
+#ifndef __BALANCING_LIMIT__
+#define __BALANCING_LIMIT__ 0.66
+#endif
+
+
 template <typename T, size_t N>
 class KDTree {
 public:
@@ -29,6 +37,7 @@ private:
     Node *more = nullptr;
   };
 
+
   size_t node_size(Node *n) {
     if (n == nullptr)
       return 0;
@@ -36,9 +45,25 @@ private:
       return node_size(n->less) + node_size(n->less) + 1;
   }
 
-  std::vector<Node *> get_subtree(Node *src) {
-    
+
+  // Get a list of all nodes below src (including src)
+  void _get_subtree(std::vector<Node *> &v, Node *src) {
+    if (src == nullptr)
+      return;
+    v.push_back(src);
+    _get_subtree(v, src->less);
+    _get_subtree(v, src->more);
   }
+  std::vector<Node *> get_subtree(Node *src) {
+    std::vector<Node *> v;
+    if (src == nullptr)
+      return v;
+    v.push_back(src);
+    _get_subtree(v, src->less);
+    _get_subtree(v, src->more);
+    return v;
+  }
+
 
   // TODO memory usage of this function is a little bad, with the node *list copying
   // still, pointers are fairly small, so unless the tree is massive, this solution should be fine.
@@ -51,8 +76,12 @@ private:
       max_depth = depth;
 
     // trivial base case, median in vector of size 1 can be only one element
-    if (np.size() == 1)
+    if (np.size() == 1) {
+      // it's a leaf, so make sure it doesn't point anywhere
+      np.front()->less = nullptr;
+      np.front()->more = nullptr;
       return np.front();
+    }
 
     size_t k = depth % N;
     // TODO implement better median finding algorithm?
@@ -61,12 +90,27 @@ private:
                 return a->p[k] < b->p[k];
               });
     auto median = np.begin() + np.size()/2;
-    (*median)->less = build(std::vector<Node *>{np.begin(), median}, depth + 1);
+    // NOTE as we use strictly less ordering for traversing the tree,
+    // if we have duplicates, we have to pick the first occurence.
+    // Because x >= x but not x < x, thus equal nodes will correctly be in the more subtree.
+    // So, step back so long as there are equal nodes
+    // Also, note that the order of the and statement plays a role
+    // as (*(median - 1)) is invalid if median = np.begin()
+    // but lazy evaluation prevents that.
+    while (median != np.begin() && (*median)->p[k] == (*(median - 1))->p[k]) {
+      --median;
+    }
+    // We can end up with the first element, so cover that edge case
+    if (median == np.begin())
+      (*median)->less = nullptr;
+    else
+      (*median)->less = build(std::vector<Node *>{np.begin(), median}, depth + 1);
     (*median)->more = build(std::vector<Node *>{median + 1, np.end()}, depth + 1);
     return *median;
   }
 
-  std::pair<bool, size_t> insert_node(Node *&src, Node *n, size_t depth = 0) {
+
+  std::pair<bool, size_t> _insert_node(Node *&src, Node *n, size_t depth = 0) {
     if (src == nullptr) {
       src = n;
       return std::make_pair(false, 0);
@@ -83,18 +127,24 @@ private:
       // first argument: did we unbalance the tree beyond the limit?
       // second argument: we know that this node is one node, and that we just added one node.
       // So we need to find the size of the other child subtree
-      return std::make_pair(depth > log(nodes.size()) / log(balancing_limit), 2 + node_size(other));
+      return std::make_pair(depth > log(nodes.size()) / log(1.0/balancing_limit), 2 + node_size(other));
     } else {
       // Recursively insert node in a subtree
-      auto rebuild_info = insert_node(next, n, depth+1);
+      auto rebuild_info = _insert_node(next, n, depth+1);
       // Do we need to rebuild?
-      if (rebuild_info->first) {
+      if (rebuild_info.first) {
         // Is this the scapegoat node?
         size_t this_size = rebuild_info.second + 1 + node_size(other);
         if (rebuild_info.second > balancing_limit * this_size) {
+          std::cout << "Scapegoat found" << std::endl;
           // Child of this node is the scapegoat, rebuild;
+          auto subtree = get_subtree(next);
+          next = build(subtree, depth);
+          // We're done, no need to keep signalling rebuilding.
+          return std::make_pair(false, 0);
         } else {
           // keep moving up the tree looking for scapegoats
+          std::cout << "No scapegoat" << std::endl;
           rebuild_info.second = this_size;
           return rebuild_info;
         }
@@ -104,6 +154,80 @@ private:
       }
     }
   }
+  void insert_node(Node *n) {
+    auto rebuild_info = _insert_node(root, n, 0);
+    if (rebuild_info.first) {
+      std::cout << "rebuilding whole tree: " << root << std::endl;
+      auto tree = get_subtree(root);
+      root = build(tree, 0);
+    }
+  }
+
+
+  Node *_erase_node(Node *&src, Node *&parent, value_type p, size_t depth=0) {
+    std::cout << "dpth " << depth << ' ' << *src << std::endl;
+
+    if (src == nullptr)
+      return nullptr;
+
+    size_t k = depth % N;
+
+    if (src->p == p) {
+      std::cout << "found " << *src << std::endl;
+      if (src->less == nullptr && src->more == nullptr) {
+        std::cout << "leaf" << std::endl;
+        auto tmp = src;
+        if (parent->less == src)
+          parent->less = nullptr;
+        else
+          parent->more = nullptr;
+        return tmp;
+      } else {
+        Node *&sub = (src->more == nullptr) ? src->less : src->more;
+        // std::cout << *sub << std::endl;
+        // find node with minimum p[k] in subtree;
+        // This function is less space efficient than a tree-traversing method. Maybe replace
+        auto subtree = get_subtree(sub);
+        Node *min = *std::min_element(subtree.begin(), subtree.end()
+                                      , [&](auto a, auto b) {
+                                        return a->p[k] < b->p[k];
+                                      });
+        // std::cout << "  min  " << *min << std::endl;
+        // replace with min, and then recursively remove min from subtree
+        _erase_node(sub, src, min->p, depth + 1);
+        auto erased = src;
+        src = min;
+        min->less = erased->less;
+        min->more = erased->more;
+        erased->less = nullptr;
+        erased->more = nullptr;
+        return erased;
+      }
+    }
+
+    Node *&next = (p[k] < src->p[k]) ? src->less : src->more;
+    return _erase_node(next, src, p, depth + 1);
+  }
+  Node * erase_node(value_type p) {
+    if (nodes.size() == 1 && root->p == p) {
+      auto tmp = root;
+      root = nullptr;
+      return tmp;
+    }
+    Node *erased = _erase_node(root, root, p); // root as parent here will never matter, as single node case is covered already
+      // Has the tree become too unbalanced? Do we need to rebuild it all?
+    if (false) {
+      std::cout << "rebuilding after deletion" << std::endl;
+      std::vector<Node *> np;
+      for (auto &n: nodes) {
+        if (&n == erased) continue;
+        np.push_back(&n);
+      }
+      root = build(std::move(np));
+    }
+    return erased;
+  }
+
 
   double dist(value_type a, value_type b) {
     double dsq = 0.0;
@@ -114,6 +238,7 @@ private:
     return sqrt(dsq);
   }
 
+
   double dist2(value_type a, value_type b) {
     double dsq = 0.0;
     for (size_t i = 0; i < N; ++i) {
@@ -122,6 +247,7 @@ private:
     }
     return dsq;
   }
+
 
   friend std::ostream& operator<<(std::ostream &out, const Node &n) {
     if (n.less != nullptr)
@@ -139,10 +265,12 @@ private:
 public:
   KDTree() { }
 
+
   template <typename Titer>
   KDTree(Titer first, Titer last) {
-    // Include a compile time check that this container contains value_type objects
+    // Include a compile time check that this container contains objects that can construct value_type?
     // Although, i guess it wont compile anyway if it doesn't?
+
     for (auto it = first; it != last; ++it) {
       nodes.emplace_back(Node{*it, nullptr, nullptr});
     }
@@ -153,14 +281,32 @@ public:
     root = build(std::move(np));
   }
 
+
+  size_t size() {
+    return node_size(root);
+  }
+
+
   void insert(value_type p) {
     nodes.emplace_back(Node{p, nullptr, nullptr});
     if (root == nullptr) {
       root = &nodes.back();
     } else {
-      insert_node(root, &nodes.back());
+      insert_node(&nodes.back());
     }
   }
+
+
+  void erase(value_type p) {
+    auto erased = erase_node(p);
+    auto it = std::find_if(nodes.begin(), nodes.end()
+                           , [&] (auto &a) {
+                             return &a == erased;
+                           });
+    std::cout << erased << ' ' << &(*it) << std::endl;
+    nodes.erase(it);
+  }
+
 
   friend std::ostream& operator<<(std::ostream& out, const KDTree &kdt) {
     out << *(kdt.root);
@@ -176,7 +322,7 @@ private:
   // Balancing limits sets a cap on how unbalance the tree can become during insertion/deletion
   // lower -> faster indel, slower lookup
   // higher -> faster lookup, slower indel
-  double balancing_limit = 0.66;
+  double balancing_limit = __BALANCING_LIMIT__;
 };
 
 
