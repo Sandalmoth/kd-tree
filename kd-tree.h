@@ -42,7 +42,7 @@ private:
     if (n == nullptr)
       return 0;
     else
-      return node_size(n->less) + node_size(n->less) + 1;
+      return node_size(n->less) + node_size(n->more) + 1;
   }
 
 
@@ -188,12 +188,21 @@ private:
         // find node with minimum p[k] in subtree;
         // This function is less space efficient than a tree-traversing method. Maybe replace
         auto subtree = get_subtree(sub);
-        Node *min = *std::min_element(subtree.begin(), subtree.end()
-                                      , [&](auto a, auto b) {
-                                        return a->p[k] < b->p[k];
-                                      });
+        Node *min = nullptr;
+        if (src->more == nullptr) {
+          min = *std::max_element(subtree.begin(), subtree.end()
+                                        , [&](auto a, auto b) {
+                                          return a->p[k] < b->p[k];
+                                        });
+        } else {
+          min = *std::min_element(subtree.begin(), subtree.end()
+                                        , [&](auto a, auto b) {
+                                          return a->p[k] < b->p[k];
+                                        });
+        }
         // std::cout << "  min  " << *min << std::endl;
         // replace with min, and then recursively remove min from subtree
+        std::cout << "recursively erasing " << min << '\t' << *min << std::endl;
         _erase_node(sub, src, min->p, depth + 1);
         auto erased = src;
         src = min;
@@ -205,7 +214,10 @@ private:
       }
     }
 
-    Node *&next = (p[k] < src->p[k]) ? src->less : src->more;
+    // Oneliners ftw?
+    Node *&next = (src->less != nullptr && src->more != nullptr) ?
+      (p[k] < src->p[k]) ?src->less : src->more :
+      (src->less == nullptr) ? src->more : src->less;
     return _erase_node(next, src, p, depth + 1);
   }
   Node * erase_node(value_type p) {
@@ -216,7 +228,9 @@ private:
     }
     Node *erased = _erase_node(root, root, p); // root as parent here will never matter, as single node case is covered already
       // Has the tree become too unbalanced? Do we need to rebuild it all?
-    if (false) {
+    size_t current_size = node_size(root);
+    std::cout << "SIZES: " << current_size << ' ' << max_node_count << std::endl;
+    if (current_size < balancing_limit * static_cast<double>(max_node_count)) {
       std::cout << "rebuilding after deletion" << std::endl;
       std::vector<Node *> np;
       for (auto &n: nodes) {
@@ -224,6 +238,7 @@ private:
         np.push_back(&n);
       }
       root = build(std::move(np));
+      max_node_count = current_size;
     }
     return erased;
   }
@@ -279,6 +294,7 @@ public:
     np.reserve(nodes.size());
     for (auto &n: nodes) np.push_back(&n);
     root = build(std::move(np));
+    max_node_count = nodes.size();
   }
 
 
@@ -294,6 +310,7 @@ public:
     } else {
       insert_node(&nodes.back());
     }
+    ++max_node_count;
   }
 
 
@@ -317,6 +334,7 @@ public:
 private:
   Node *root = nullptr;
   size_t max_depth = 0;
+  size_t max_node_count = 0;
   std::list<Node> nodes;
 
   // Balancing limits sets a cap on how unbalance the tree can become during insertion/deletion

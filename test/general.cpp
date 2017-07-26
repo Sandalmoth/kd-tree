@@ -27,19 +27,37 @@ int main() {
     v.push_back(kdpos{rnd1(i*d(rng)), rnd1(i*d(rng))});
   }
   kdt = KDTree<double, 2>(v.begin(), v.end());
-  cout << kdt << endl;
+  cout << kdt.size() << '\t' << kdt << endl;
 
   cout << "\nINSERTING" << std::endl;
   for (int i = 1; i <= 5; ++i) {
     kdt.insert(kdpos{rnd1(i*d(rng)), rnd1(i*d(rng))});
-    cout << kdt << endl;
+    cout << kdt.size() << '\t' << kdt << endl;
   }
 
   cout << "\nERASING" << std::endl;
   for (auto &p: v) {
     cout << "erasing: "; for(auto x: p) cout << x << ' '; cout << endl;
     kdt.erase(p);
-    cout << kdt << endl;
+    cout << kdt.size() << '\t' << kdt << endl;
   }
-  cout << "PROGRAM END" << endl;
+
+  cout << "\nUNBALANCED INSERTION" << std::endl;
+  vector<kdpos> v2;
+  for (int i = 1; i <= 10; ++i) {
+    v2.push_back(kdpos{i * 1.0, i * 1.0});
+  }
+  for (auto p: v2) {
+    kdt.insert(p);
+    cout << kdt.size() << '\t' << kdt << endl;
+  }
+
+  cout << "\nUNBALANCED ERASURE" << std::endl;
+  for (auto &p: v2) {
+    cout << "erasing: "; for(auto x: p) cout << x << ' '; cout << endl;
+    kdt.erase(p);
+    cout << kdt.size() << '\t' << kdt << endl;
+  }
+
+  cout << "\nPROGRAM END" << endl;
 }
