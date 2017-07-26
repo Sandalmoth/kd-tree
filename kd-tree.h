@@ -264,6 +264,45 @@ private:
   }
 
 
+  double kdist2(value_type a, value_type b, size_t k) {
+    double d = a[k] - b[k];
+    return d * d;
+  }
+
+
+  std::pair<Node *, double> _nearest_node(Node *src, value_type p, size_t depth=0) {
+    if (src == nullptr) return nullptr;
+
+    size_t k = depth % N;
+
+    double d = dist2(src->p, p);
+    double dk = kdist2(src->p, p);
+
+    Node *&next = (src->p[k] < p[k]) ? src->less : src->more;
+    Node *&other = (src->p[k] < p[k]) ? src->more : src->less;
+
+    if (next == nullptr && other == nullptr) {
+      return make_pair(src, d);
+    } else {
+      next = other;
+    }
+
+    auto nn = _nearest_node(next, p, depth + 1);
+
+    if (nn.second > d) {
+      nn.first = *src;
+      nn.second = d;
+    }
+
+  }
+  Node *nearest_node(value_type p) {
+    if (nodes.size() == 1)
+      return root;
+
+    return _nearest_node(root, p).first;
+  }
+
+
   friend std::ostream& operator<<(std::ostream &out, const Node &n) {
     if (n.less != nullptr)
       out << '(' << *(n.less) << ") ";
@@ -322,6 +361,11 @@ public:
                            });
     std::cout << erased << ' ' << &(*it) << std::endl;
     nodes.erase(it);
+  }
+
+
+  value_type nearest(value_type p) {
+    return nearest_node(p)->p;
   }
 
 
