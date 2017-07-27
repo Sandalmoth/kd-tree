@@ -271,28 +271,42 @@ private:
 
 
   std::pair<Node *, double> _nearest_node(Node *src, value_type p, size_t depth=0) {
-    if (src == nullptr) return nullptr;
+    if (src == nullptr) return std::make_pair(nullptr, 1e100);
 
     size_t k = depth % N;
 
     double d = dist2(src->p, p);
-    double dk = kdist2(src->p, p);
+    double dk = kdist2(src->p, p, k);
+    std::cout << *src << ' ' << d << std::endl;
 
-    Node *&next = (src->p[k] < p[k]) ? src->less : src->more;
-    Node *&other = (src->p[k] < p[k]) ? src->more : src->less;
+    Node *next = (src->p[k] < p[k]) ? src->less : src->more;
+    Node *other = (src->p[k] < p[k]) ? src->more : src->less;
 
     if (next == nullptr && other == nullptr) {
-      return make_pair(src, d);
+      return std::make_pair(src, d);
     } else {
+      auto tmp = next;
       next = other;
+      other = tmp;
     }
 
     auto nn = _nearest_node(next, p, depth + 1);
 
-    if (nn.second > d) {
-      nn.first = *src;
+    if (nn.second > d || nn.first == nullptr) {
+      nn.first = src;
       nn.second = d;
     }
+
+    if (nn.second > dk) {
+      std::cout << "exploring other tree from " << *src << " as " << dk << " < " << nn.second << std::endl;
+      std::cout << other << ' ' << next << std::endl;
+      auto nn2 = _nearest_node(other, p, depth + 1);
+      if (nn2.second < nn.second && nn2.first != nullptr) {
+        nn = nn2;
+      }
+    }
+
+    return nn;
 
   }
   Node *nearest_node(value_type p) {
@@ -373,6 +387,23 @@ public:
     out << *(kdt.root);
     return out;
   }
+
+
+#ifdef __ENABLE_KDTREE_DEBUG__ // Debug functions
+
+  value_type print_distances(value_type p) {
+    std::vector< std::pair<value_type, double> > v;
+    for (auto &n: nodes) {
+      std::cout << dist2(n.p, p) << '\t' << n << std::endl;
+      v.push_back(make_pair(n.p, dist2(n.p, p)));
+    }
+    return std::min_element(v.begin(), v.end()
+                            , [](auto a, auto b){
+                              return a.second < b.second;
+                            })->first;
+  }
+
+#endif
 
 
 private:

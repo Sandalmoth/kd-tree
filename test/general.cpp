@@ -2,8 +2,10 @@
 #include <vector>
 #include <random>
 #include <cmath>
+#include <cassert>
 
 
+#define __ENABLE_KDTREE_DEBUG__
 #include "../kd-tree.h"
 
 
@@ -58,6 +60,22 @@ int main() {
     kdt.erase(p);
     cout << kdt.size() << '\t' << kdt << endl;
   }
+
+
+  cout << "\nNEAREST NEIGHBOUR" << std::endl;
+  for (int i = 1; i <= 5; ++i) {
+    auto kp = kdpos{rnd1(i*d(rng)), rnd1(i*d(rng))};
+    auto p = kdt.nearest(kp);
+    cout << " # ";
+    for (auto x: kp) cout << x << ' ';
+    cout << "is closest to ";
+    for (auto x: p) cout << x << ' ';
+    cout << endl;
+    auto tp = kdt.print_distances(kp);
+    assert(p == tp);
+    cout << " ---\n";
+  }
+
 
   cout << "\nPROGRAM END" << endl;
 }
