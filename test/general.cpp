@@ -61,7 +61,6 @@ int main() {
     cout << kdt.size() << '\t' << kdt << endl;
   }
 
-
   cout << "\nNEAREST NEIGHBOUR" << std::endl;
   for (int i = 1; i <= 5; ++i) {
     auto kp = kdpos{rnd1(i*d(rng)), rnd1(i*d(rng))};
@@ -75,6 +74,24 @@ int main() {
     assert(p == tp);
     cout << " ---\n";
   }
+
+  cout << "\nNODES WITHIN DISTANCE" << std::endl;
+  kdt.print_distances(kdpos{0.0, 0.0});
+  for (int i = 1; i <= 5; ++i) {
+    // auto kp = kdpos{rnd1(i*d(rng)), rnd1(i*d(rng))};
+    auto kp = kdpos {0.0, 0.0};
+    double distance = i + i*d(rng);
+    if (distance < 0) distance = -distance;
+    cout << "distance " << distance << endl;
+    auto p = kdt.within_distance(kp, distance);
+    for (auto x: p) {
+      cout << '(';
+      for (auto y: x) cout << y << ' ';
+      cout << "\b) ";
+    }
+    cout << endl;
+  }
+
 
 
   cout << "\nPROGRAM END" << endl;

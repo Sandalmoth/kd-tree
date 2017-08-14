@@ -317,6 +317,36 @@ private:
   }
 
 
+  void _nodes_within_distance(std::vector<Node *> &nwd, Node *src, value_type p, double d, size_t depth=0) {
+    // Does this node exist?
+    if (src == nullptr) return;
+
+    // Is this node within distance?
+    if (dist2(p, src->p) < d) {
+      nwd.push_back(src);
+    }
+
+    size_t k = depth % N;
+
+    // Do we need to explore both subtrees?
+    if (kdist2(p, src->p, k) < d) {
+      std::cout << "exploring both" << std::endl;
+      _nodes_within_distance(nwd, src->less, p, d, depth+1);
+      _nodes_within_distance(nwd, src->more, p, d, depth+1);
+      return;
+    } else {
+      // explore the relevant subtree
+      _nodes_within_distance(nwd, (p[k] < src->p[k]) ? src->less : src->more, p, d, depth+1);
+      return;
+    }
+  }
+  std::vector<Node *> nodes_within_distance(value_type p, double d) {
+    std::vector<Node *> nwd;
+    _nodes_within_distance(nwd, root, p, d*d);
+    return nwd;
+  }
+
+
   friend std::ostream& operator<<(std::ostream &out, const Node &n) {
     if (n.less != nullptr)
       out << '(' << *(n.less) << ") ";
@@ -383,6 +413,16 @@ public:
   }
 
 
+  std::vector<value_type> within_distance(value_type p, double d) {
+    auto ndw = nodes_within_distance(p, d);
+    std::vector<value_type> v;
+    for (auto n: ndw) {
+      v.push_back(n->p);
+    }
+    return v;
+  }
+
+
   friend std::ostream& operator<<(std::ostream& out, const KDTree &kdt) {
     out << *(kdt.root);
     return out;
@@ -394,7 +434,7 @@ public:
   value_type print_distances(value_type p) {
     std::vector< std::pair<value_type, double> > v;
     for (auto &n: nodes) {
-      std::cout << dist2(n.p, p) << '\t' << n << std::endl;
+      std::cout << dist(n.p, p) << '\t' << n << std::endl;
       v.push_back(make_pair(n.p, dist2(n.p, p)));
     }
     return std::min_element(v.begin(), v.end()
