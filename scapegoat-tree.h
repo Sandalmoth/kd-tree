@@ -35,6 +35,11 @@ private:
   }
 
 
+  Node* build(Node*& first, size_t n) {
+    return first;
+  }
+
+
   void insert(Node*& n, T value, int depth = 0) {
     if (n == nullptr) {
       n = new Node;
@@ -45,7 +50,8 @@ private:
       std::cout << depth << " : " << ceil(log(size())/log_balancing_limit) << std::endl;
       if (depth > ceil(log(size())/log_balancing_limit)) {
         std::cout << "Created unbalance, rebalancing " << (*this) << std::endl;
-        // find first unbalanced parent
+
+        // first, find a scapegoat
         Node* this_node = n;
         int this_size = 1;
         int parent_size = 0;
@@ -103,13 +109,60 @@ public:
 
   template <typename Iter>
   ScapegoatTree(Iter first, Iter last) {
-    // Replace this awful method with proper construction
-    // Something like sort and recursively insert median(s)
+    // // Replace this awful method with proper construction
+    // // Something like sort and recursively insert median(s)
+    // while (first != last) {
+    //   std::cout << "inserting" << *first << std::endl;
+    //   insert(root, *first);
+    //   ++first;
+    // }
+
+    if (first == last) return;
+
+    // First, create a sorted "linked list" of nodes
+    size_t n = 1;
+    Node* first_node = new Node;
+    first_node->value = (*first);
+    ++first;
+    std::cout << first_node->value << std::endl;
     while (first != last) {
-      std::cout << "inserting" << *first << std::endl;
-      insert(root, *first);
+      Node* new_node = new Node;
+      new_node->value = (*first);
+      std::cout << new_node->value << std::endl;
+      ++n;
       ++first;
+
+      // does it go first in the list?
+      // special case since we need to update first_node in that case
+      if (new_node->value <= first_node->value) {
+        std::cout << "replaced first" << std::endl;
+        first_node->less = new_node;
+        new_node->more = first_node;
+        first_node = new_node;
+        continue;
+      }
+
+      // find position and insert
+      Node *tmp_node = first_node;
+      // note reliance on short-circuit to prevent dereferencing nullptr
+      while (tmp_node->more != nullptr && new_node->value > tmp_node->more->value) {
+        tmp_node = tmp_node->more;
+      }
+
+      new_node->less = tmp_node;
+      new_node->more = tmp_node->more;
+      tmp_node->more = new_node;
+      if (tmp_node->more != nullptr)
+        tmp_node->more->less = new_node;
+
     }
+
+    std::cout << "yo" << std::endl;
+    while (first_node != nullptr) {
+      std::cout << first_node->value << "  ";
+      first_node = first_node->more;
+    }
+    root = build(first_node, n);
   }
 
 
