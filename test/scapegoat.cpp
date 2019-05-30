@@ -21,6 +21,20 @@ int main() {
     v.push_back(d(rng));
   }
   st = ScapegoatTree<int>(v.begin(), v.end());
-  cout << "constructed" << endl;
   cout << st.size() << '\t' << st << endl;
+
+  cout << "\nINSERTING" << std::endl;
+  for (int i = 1; i <= 10; ++i) {
+
+    st.insert(d(rng));
+    cout << st.size() << '\t' << st << endl;
+  }
+
+  cout << "\nERASING" << std::endl;
+  for (auto &x: v) {
+    cout << "erasing: " << x << endl;
+    st.erase(x);
+    cout << st.size() << '\t' << st << endl;
+  }
+
 }

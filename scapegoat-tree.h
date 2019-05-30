@@ -39,8 +39,6 @@ private:
     // Takes a linked list made from nodes, and it's length and
     // builds a balanced binary tree
 
-    std::cout << n << std::endl;
-
     if (n == 0) {
       return nullptr;
     }
@@ -48,38 +46,31 @@ private:
     int median = (n - 1)/2;
 
     if (median <= 0) {
-      std::cout << "list too short, nothing to do " << median << " out of " << n << std::endl;
       // median 0 means we have only one or two items.
       // In that case the we have already have a balanced tree
+      first->less = nullptr;
+      if (first->more != nullptr) {
+        first->more->less = nullptr;
+        first->more->less = nullptr;
+      }
       return first;
     }
 
-    std::cout << "finding median nr " << median << " out of " << n << std::endl;
     // find median element of list
     Node* sub_root = first;
     for (int i = 0; i < median; ++i) {
       sub_root = sub_root->more;
     }
-    std::cout << median << "  " << sub_root->value << std::endl;
-    std::cout << sub_root->less << "  " << sub_root << "  " << sub_root->more << std::endl;
-    std::cout << "doing left subtree" << std::endl;
-    std::cout << sub_root->more->value << std::endl;
     sub_root->less->more = nullptr;
-    std::cout << sub_root->more->value << std::endl;
     sub_root->less = build(first, median);
-    std::cout << sub_root->more->value << std::endl;
-    std::cout << "doing right subtree" << std::endl;
-    std::cout << sub_root->value << std::endl;
-    std::cout << sub_root->more << std::endl;
-    std::cout << sub_root->more->value << std::endl;
-    // sub_root->more->less = nullptr;
+    sub_root->more->less = nullptr;
     sub_root->more = build(sub_root->more, n - median - 1);
 
     return sub_root;
   }
 
 
-  void insert(Node* n, T value, int depth = 0) {
+  void _insert(Node* n, T value, int depth = 0) {
     if (n == nullptr) {
       n = new Node;
       n->value = value;
@@ -117,10 +108,10 @@ private:
     tmp.push(n);
 
     if (value < n->value) {
-      insert(n->less, value, depth + 1);
+      _insert(n->less, value, depth + 1);
     }
     else {
-      insert(n->more, value, depth + 1);
+      _insert(n->more, value, depth + 1);
     }
   }
 
@@ -138,8 +129,11 @@ private:
 
 
 public:
-  void push(T value) {
-    insert(root, value);
+  void insert(T value) {
+    _insert(root, value);
+  }
+
+  void erase(T value) {
   }
 
 
@@ -148,14 +142,6 @@ public:
 
   template <typename Iter>
   ScapegoatTree(Iter first, Iter last) {
-    // // Replace this awful method with proper construction
-    // // Something like sort and recursively insert median(s)
-    // while (first != last) {
-    //   std::cout << "inserting" << *first << std::endl;
-    //   insert(root, *first);
-    //   ++first;
-    // }
-
     if (first == last) return;
 
     // First, create a sorted "linked list" of nodes
@@ -187,25 +173,12 @@ public:
 
       new_node->less = tmp_node;
       new_node->more = tmp_node->more;
-      tmp_node->more = new_node;
-      if (tmp_node->more != nullptr)
+      if (tmp_node->more != nullptr) {
         tmp_node->more->less = new_node;
+      }
+      tmp_node->more = new_node;
 
     }
-
-    std::cout << "sorted ll for construction" << std::endl;
-    Node* print_node = first_node;
-    while (print_node != nullptr) {
-      std::cout << print_node->value << "  ";
-      print_node = print_node->more;
-    }
-    std::cout << std::endl;
-    print_node = first_node;
-    while (print_node != nullptr) {
-      std::cout << " (" << print_node->less << " < " << print_node << " > " << print_node->more << ") " << std::endl;
-      print_node = print_node->more;
-    }
-    std::cout << "\nbuilding" << std::endl;
 
     root = build(first_node, n);
   }
