@@ -21,7 +21,6 @@ private:
 
   Node* root = nullptr;
   size_t max_node_count = 0;
-  std::stack<Node *> tmp;
   static constexpr const double balancing_limit = 0.66;
   static constexpr const double log_balancing_limit = log(1.0/0.66);
 
@@ -34,6 +33,58 @@ private:
     }
   }
 
+
+  Node* flatten(Node* sub_root) {
+    if (sub_root == nullptr)
+      return nullptr;
+
+    //   std::cout << *sub_root << std::endl;
+
+    Node* ll_less = flatten(sub_root->less);
+    Node* ll_more = flatten(sub_root->more);
+    sub_root->more = ll_more;
+
+    if (ll_more != nullptr)
+      ll_more->less = sub_root;
+
+    if (ll_less == nullptr)
+      return sub_root;
+
+    Node* ll_less_end = ll_less;
+    while (ll_less_end->more != nullptr)
+      ll_less_end = ll_less_end->more;
+
+    sub_root->less = ll_less_end;
+    ll_less_end = sub_root;
+
+    return ll_less;
+  }
+
+  // Node* flatten(Node* sub_root) {
+  //   std::cout << *sub_root << std::endl;
+  //   Node* l1 = (sub_root->less) ? flatten(sub_root->less) : nullptr;
+  //   Node* l2 = (sub_root->more) ? flatten(sub_root->more) : nullptr;
+  //   Node* l3 = sub_root;
+  //   l3->more = l2;
+  //   if (!l1) return l3;
+  //   Node* last = l1;
+  //   while (last->more) last = last->more;
+  //   last->more = l3;
+  //   return l1;
+  // }
+
+//   List* flattenToLL(Node* root) {
+//     List *list1 = (root->left) ? flattenToLL(root->left) : NULL;
+//     List *list2 = (root->right) ? flattenToLL(root->right) : NULL;
+//     List *list3 = newNode(root->key);
+//     // The "middle" list3 cannot be NULL; append list2 to list3
+//     list3->next = list2; // If list2 is NULL, it's OK
+//     if (!list1) return list3; // Nothing to prepend
+//     List *last = list1;
+//     while (last->next) last=last->next; // Go to the end of list1
+//     last->next = list3; // Append list3+list2 to the end of list1
+//     return list1;
+// }
 
   Node* build(Node* first, size_t n) {
     // Takes a linked list made from nodes, and it's length and
@@ -70,49 +121,123 @@ private:
   }
 
 
-  void _insert(Node* n, T value, int depth = 0) {
-    if (n == nullptr) {
-      n = new Node;
-      n->value = value;
+  void _insert(Node*& n, T value) {
+    Node* insertion_node = n;
+    std::stack<Node *> parents;
+    int depth = 0;
 
-      // value inserted, do we need to rebalance the tree?
-      // consider storing size in tree object to avoid excessive tree traversal
-      std::cout << depth << " : " << ceil(log(size())/log_balancing_limit) << std::endl;
-      if (depth > ceil(log(size())/log_balancing_limit)) {
-        std::cout << "Created unbalance, rebalancing " << (*this) << std::endl;
+    // traverse tree to find insertion point
+    while (insertion_node != nullptr) {
+      parents.push(insertion_node);
+      ++depth;
+      if (value < insertion_node->value) {
+        insertion_node = insertion_node->less;
+      } else {
+        insertion_node = insertion_node->more;
+      }
+    }
 
-        // first, find a scapegoat
-        Node* this_node = n;
-        int this_size = 1;
-        int parent_size = 0;
-        while (!tmp.empty()) {
-          Node* parent = tmp.top();
-          tmp.pop();
-          int sibling_size = node_size((parent->less == this_node) ?
-                                       parent->more : parent->less);
-          parent_size = this_size + sibling_size + 1;
-          if (this_size > floor(balancing_limit*parent_size) ||
-              sibling_size > floor(balancing_limit*parent_size)) {
-            std::cout << "found scapegoat " << parent->value << " in " << (*this) << std::endl;
+    // insert node
+    insertion_node = parents.top();
+    parents.pop();
+    Node* new_node = new Node;
+    new_node->value = value;
+    // TODO restructure to prevent this extra if
+    if (value < insertion_node->value) {
+      insertion_node->less = new_node;
+    } else {
+      insertion_node->more = new_node;
+    }
 
-            // rebuild by flattening tree below and recursively rebuilding
+    // did we unbalance the tree?
+    if (depth > ceil(log(size())/log_balancing_limit)) {
+      std::cout << "Rebalancing " << std::endl;
 
-            break;
-          }
+      // check our nodes to find the first scapegoat
+      Node* scapegoat = nullptr;
+      while (!parents.empty()) {
+        scapegoat = parents.top();
+        parents.pop();
+
+        int size_less = node_size(scapegoat->less);
+        int size_more = node_size(scapegoat->more);
+        if (size_less > balancing_limit*(size_less + size_more + 1) ||
+            size_more > balancing_limit*(size_less + size_more + 1)) {
+          break;
+        }
+      }
+      // identify the pointer in the tree that points to the scapegoat
+      Node** scapegoat_pointer;
+      if (parents.empty()) {
+        scapegoat_pointer = &n;
+      } else {
+        Node* scapegoat_parent = parents.top();
+        if (scapegoat == scapegoat_parent->less) {
+          scapegoat_pointer = &(scapegoat_parent->less);
+        } else {
+          scapegoat_pointer = &(scapegoat_parent->less);
         }
       }
 
-      return;
+      // rebuild scapegoat subtree
+      int scapegoat_size = node_size(scapegoat);
+      std::cout << "flattening and rebuilding" << std::endl;
+      std::cout << *scapegoat << std::endl;
+      Node* flat = flatten(scapegoat);
+      std::cout << "is flat?" << std::endl;
+      Node* flat_start = flat;
+      std::cout << flat_start->value << "  ";
+      while (flat_start->more != nullptr) {
+        flat_start = flat_start->more;
+        std::cout << flat_start->value << "  ";
+      } std::cout << std::endl;
+      // (*scapegoat_pointer) = build(flatten(scapegoat), scapegoat_size);
+      (*scapegoat_pointer) = build(flat, scapegoat_size);
     }
 
-    tmp.push(n);
+    // if (n == nullptr) {
+    //   n = new Node;
+    //   n->value = value;
 
-    if (value < n->value) {
-      _insert(n->less, value, depth + 1);
-    }
-    else {
-      _insert(n->more, value, depth + 1);
-    }
+    //   // value inserted, do we need to rebalance the tree?
+    //   // consider storing size in tree object to avoid excessive tree traversal
+    //   if (depth > ceil(log(size())/log_balancing_limit)) {
+    //     std::cout << "Rebalancing " << std::endl;
+
+    //     Node* scapegoat = n;
+
+    //     // // first, find a scapegoat
+    //     // Node* this_node = n;
+    //     // int this_size = 1;
+    //     // int parent_size = 0;
+    //     // while (!tmp.empty()) {
+    //     //   Node* parent = tmp.top();
+    //     //   tmp.pop();
+    //     //   int sibling_size = node_size((parent->less == this_node) ?
+    //     //                                parent->more : parent->less);
+    //     //   parent_size = this_size + sibling_size + 1;
+    //     //   if (this_size > floor(balancing_limit*parent_size) ||
+    //     //       sibling_size > floor(balancing_limit*parent_size)) {
+    //     //     std::cout << "found scapegoat " << parent->value << " in " << (*this) << std::endl;
+
+    //     //     // rebuild by flattening tree below and recursively rebuilding
+
+    //     //     break;
+    //     //   }
+    //     // }
+    //   }
+
+    //   return;
+    // }
+
+    // tmp.push(n);
+
+    // if (value < n->value) {
+    //   _insert(n->less, value, depth + 1);
+    // }
+    // else {
+    //   _insert(n->more, value, depth + 1);
+    // }
   }
 
 
@@ -167,7 +292,8 @@ public:
       // find position and insert
       Node *tmp_node = first_node;
       // note reliance on short-circuit to prevent dereferencing nullptr
-      while (tmp_node->more != nullptr && new_node->value > tmp_node->more->value) {
+      while (tmp_node->more != nullptr &&
+             new_node->value > tmp_node->more->value) {
         tmp_node = tmp_node->more;
       }
 

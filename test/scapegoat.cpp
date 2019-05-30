@@ -17,7 +17,7 @@ int main() {
 
   cout << "\nCONSTRUCTING" << std::endl;
   vector<int> v;
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 5; ++i) {
     v.push_back(d(rng));
   }
   st = ScapegoatTree<int>(v.begin(), v.end());
@@ -25,8 +25,9 @@ int main() {
 
   cout << "\nINSERTING" << std::endl;
   for (int i = 1; i <= 10; ++i) {
-
-    st.insert(d(rng));
+    int x = d(rng);
+    cout << "inserting: " << x << endl;
+    st.insert(x);
     cout << st.size() << '\t' << st << endl;
   }
 
